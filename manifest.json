@@ -27,7 +27,8 @@
         "${user_config.git_bundles}"
       ],
       "env": {
-        "OKF_GIT_TOKEN": "${user_config.git_token}"
+        "OKF_GIT_TOKEN": "${user_config.git_token}",
+        "OKF_GIT_SSH_KEY": "${user_config.ssh_key}"
       }
     }
   },
@@ -56,8 +57,14 @@
     "git_token": {
       "type": "string",
       "title": "Git access token",
-      "description": "Token for private git bundles (stored in the OS keychain). Leave empty for public repositories or local-only use.",
+      "description": "Token for private git bundles over HTTPS, e.g. a fine-grained PAT scoped to the repository (stored in the OS keychain). Leave empty for public repositories, SSH remotes, or local-only use.",
       "sensitive": true,
+      "required": false
+    },
+    "ssh_key": {
+      "type": "file",
+      "title": "SSH deploy key",
+      "description": "Private key file for git bundles with SSH URLs (git@github.com:…), e.g. a GitHub deploy key. Leave empty for HTTPS or local-only use.",
       "required": false
     }
   },

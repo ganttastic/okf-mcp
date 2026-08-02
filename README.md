@@ -18,8 +18,25 @@ open build/okf-mcp.mcpb
 
 Claude Desktop shows an install dialog with a **configuration form**: pick local bundle
 folders with a native directory picker, paste git clone URLs (optionally `#branch`), and
-enter a git token for private repositories — the token is stored in the OS keychain,
-never in a config file. Settings → Extensions → OKF Connector reopens the form any time.
+for private repositories either enter a git token (stored in the OS keychain, never in a
+config file) or pick an SSH deploy key file for `git@…` URLs. Settings → Extensions →
+OKF Connector reopens the form any time.
+
+### Shipping a preconfigured installer
+
+Pass defaults at pack time and the form comes pre-filled — the recipient double-clicks,
+at most drops in a credential, and is done:
+
+```bash
+npm run pack:mcpb -- --name okf-dash --display-name "DASH Wiki" \
+  --git https://github.com/DashAuction/dash-wiki.git#main
+```
+
+That writes `build/okf-dash.mcpb` with the repository already in the form. For a public
+repository the install is literally double-click → Install. For a private one the
+recipient adds either a fine-grained PAT scoped to that repository (HTTPS URL) or a
+deploy key file (SSH URL). Give each client's installer its own `--name` — Claude
+Desktop identifies extensions by name, so distinct names can coexist.
 
 ## Add to Codex
 

@@ -159,8 +159,10 @@ export function parseLocation(source: SourceConfig): { url: string; branch?: str
   };
 }
 
-function withAuth(url: string, source: SourceConfig, name: string): string {
+export function withAuth(url: string, source: SourceConfig, name: string): string {
   if (!source.auth) return url;
+  // SSH remotes (git@host:… or ssh://…) authenticate with keys, not tokens.
+  if (!/^https?:\/\//i.test(url)) return url;
   const token = process.env[source.auth.env];
   if (!token) {
     throw new Error(
@@ -173,12 +175,23 @@ function withAuth(url: string, source: SourceConfig, name: string): string {
   return parsed.toString();
 }
 
+/**
+ * OKF_GIT_SSH_KEY names a private key file (e.g. a GitHub deploy key) used
+ * for every SSH remote. accept-new keeps first contact non-interactive
+ * without ignoring a changed host key afterwards.
+ */
+export function gitEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const merged: NodeJS.ProcessEnv = { ...env, GIT_TERMINAL_PROMPT: "0" };
+  const sshKey = env["OKF_GIT_SSH_KEY"];
+  if (sshKey && !sshKey.startsWith("${")) {
+    merged["GIT_SSH_COMMAND"] = `ssh -i "${sshKey}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`;
+  }
+  return merged;
+}
+
 async function git(args: string[], cwd: string): Promise<string> {
   try {
-    const { stdout } = await execFileAsync("git", args, {
-      cwd,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-    });
+    const { stdout } = await execFileAsync("git", args, { cwd, env: gitEnv() });
     return stdout;
   } catch (err) {
     const stderr = (err as { stderr?: string }).stderr;
