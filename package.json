@@ -8,6 +8,10 @@
     "okf-mcp": "dist/server.js"
   },
   "main": "dist/server.js",
+  "files": [
+    "dist",
+    "sources.example.json"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/server.ts",

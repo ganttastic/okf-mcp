@@ -1,0 +1,57 @@
+# Tag a version (git tag v0.1.0 && git push --tags) and this publishes a
+# GitHub Release carrying two artifacts:
+#
+#   okf-mcp.tgz     prebuilt npm tarball at a stable URL —
+#                   npx https://github.com/ganttastic/okf-mcp/releases/latest/download/okf-mcp.tgz
+#                   installs it with no auth, no clone, and no build step.
+#                   Bundle repositories run their §11 conformance gate from it.
+#   okf-mcp.mcpb    the Claude Desktop installer (generic, unconfigured).
+#
+# Releases rather than the GitHub npm registry deliberately: that registry
+# requires authentication to install even public packages, which would force a
+# PAT into every wiki-template clone's CI. Release assets are plain URLs.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Pack npm tarball
+        run: |
+          npm pack
+          cp okf-mcp-*.tgz okf-mcp.tgz
+
+      - name: Pack desktop bundle
+        run: npm run pack:mcpb
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "okf-mcp ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            okf-mcp.tgz \
+            okf-mcp-*.tgz \
+            build/okf-mcp.mcpb
