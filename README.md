@@ -205,8 +205,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - run: npx --yes github:ganttastic/okf-mcp --validate .
+      - run: npx --yes https://github.com/ganttastic/okf-mcp/releases/latest/download/okf-mcp.tgz --validate .
 ```
+
+The tarball is a prebuilt release artifact — no auth, no clone, no build step. Pin a
+version by replacing `latest/download` with `download/vX.Y.Z`. Releases are cut by
+pushing a version tag (`git tag v0.1.1 && git push --tags`); each release also carries
+the Claude Desktop installer (`okf-mcp.mcpb`).
 
 [dash-wiki](https://github.com/DashAuction/dash-wiki) runs exactly this. The validator
 lives here rather than in the bundle repositories because those are templates: template
