@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -9,6 +9,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const execFileAsync = promisify(execFile);
 const INJECTOR = fileURLToPath(new URL("../scripts/inject-defaults.mjs", import.meta.url));
 const MANIFEST = fileURLToPath(new URL("../manifest.json", import.meta.url));
+const KEY_INSTALLER_GEN = fileURLToPath(
+  new URL("../scripts/make-key-installer.sh", import.meta.url),
+);
 
 describe("installer default injection", () => {
   let dir: string;
@@ -58,5 +61,44 @@ describe("installer default injection", () => {
     const staged = join(dir, "reject.json");
     await copyFile(MANIFEST, staged);
     await expect(execFileAsync("node", [INJECTOR, staged, "--nope"])).rejects.toThrow();
+  });
+});
+
+describe("deploy key installer", () => {
+  let dir: string;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), "okf-mcp-keygen-"));
+  });
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("generates a double-clickable installer that places the key with 600 perms", async () => {
+    const keySource = join(dir, "deploy-key");
+    const keyBody = "-----BEGIN OPENSSH PRIVATE KEY-----\nfixture-key-material\n-----END OPENSSH PRIVATE KEY-----\n";
+    await writeFile(keySource, keyBody);
+    const installer = join(dir, "Install Key.command");
+    await execFileAsync("bash", [KEY_INSTALLER_GEN, keySource, installer]);
+
+    // Run it exactly as a recipient's double-click would, in a sandbox HOME.
+    const home = join(dir, "home");
+    await execFileAsync("sh", [installer], { env: { ...process.env, HOME: home } });
+
+    const installed = join(home, ".config", "okf-mcp", "deploy-key");
+    expect(await readFile(installed, "utf8")).toBe(keyBody);
+    expect((await stat(installed)).mode & 0o777).toBe(0o600);
+    // Running it again (double-click twice) must be harmless.
+    await execFileAsync("sh", [installer], { env: { ...process.env, HOME: home } });
+    expect(await readFile(installed, "utf8")).toBe(keyBody);
+  });
+
+  it("refuses a file that is not a private key", async () => {
+    const notAKey = join(dir, "notes.txt");
+    await writeFile(notAKey, "hello");
+    await expect(
+      execFileAsync("bash", [KEY_INSTALLER_GEN, notAKey, join(dir, "out.command")]),
+    ).rejects.toThrow();
   });
 });

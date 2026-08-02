@@ -12,7 +12,8 @@
     "dev": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "pack:mcpb": "bash scripts/pack-mcpb.sh"
+    "pack:mcpb": "bash scripts/pack-mcpb.sh",
+    "key:installer": "bash scripts/make-key-installer.sh"
   },
   "engines": {
     "node": ">=20"

@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -177,15 +178,34 @@ export function withAuth(url: string, source: SourceConfig, name: string): strin
   return parsed.toString();
 }
 
+/** Where the key installer script puts a handed-out deploy key. */
+export const DEFAULT_SSH_KEY_PATH = join(homedir(), ".config", "okf-mcp", "deploy-key");
+
 /**
- * OKF_GIT_SSH_KEY names a private key file (e.g. a GitHub deploy key) used
- * for every SSH remote. accept-new keeps first contact non-interactive
- * without ignoring a changed host key afterwards.
+ * The key for SSH remotes: OKF_GIT_SSH_KEY when set, else the standard
+ * installed location when a key exists there — so a recipient who ran the
+ * key installer needs no configuration at all.
  */
-export function gitEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+export function resolveSshKeyPath(
+  env: NodeJS.ProcessEnv = process.env,
+  defaultPath: string = DEFAULT_SSH_KEY_PATH,
+): string | undefined {
+  const configured = env["OKF_GIT_SSH_KEY"];
+  if (configured && !configured.startsWith("${")) return configured;
+  return existsSync(defaultPath) ? defaultPath : undefined;
+}
+
+/**
+ * accept-new keeps first contact non-interactive without ignoring a
+ * changed host key afterwards.
+ */
+export function gitEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  defaultKeyPath: string = DEFAULT_SSH_KEY_PATH,
+): NodeJS.ProcessEnv {
   const merged: NodeJS.ProcessEnv = { ...env, GIT_TERMINAL_PROMPT: "0" };
-  const sshKey = env["OKF_GIT_SSH_KEY"];
-  if (sshKey && !sshKey.startsWith("${")) {
+  const sshKey = resolveSshKeyPath(env, defaultKeyPath);
+  if (sshKey) {
     merged["GIT_SSH_COMMAND"] = `ssh -i "${sshKey}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`;
   }
   return merged;
@@ -201,9 +221,12 @@ export function isSshRemote(url: string): boolean {
  * deploy key file goes wrong: it isn't where the config says, or it was
  * saved with permissions ssh will silently refuse.
  */
-export async function checkSshKey(env: NodeJS.ProcessEnv = process.env): Promise<void> {
-  const keyPath = env["OKF_GIT_SSH_KEY"];
-  if (!keyPath || keyPath.startsWith("${")) return;
+export async function checkSshKey(
+  env: NodeJS.ProcessEnv = process.env,
+  defaultPath: string = DEFAULT_SSH_KEY_PATH,
+): Promise<void> {
+  const keyPath = resolveSshKeyPath(env, defaultPath);
+  if (!keyPath) return;
   let stats;
   try {
     stats = await stat(keyPath);

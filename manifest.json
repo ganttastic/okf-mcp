@@ -64,7 +64,7 @@
     "ssh_key": {
       "type": "file",
       "title": "SSH deploy key",
-      "description": "Private key file for git bundles with SSH URLs (git@github.com:…), e.g. a GitHub deploy key. Leave empty for HTTPS or local-only use.",
+      "description": "Private key file for git bundles with SSH URLs (git@github.com:…), e.g. a GitHub deploy key. Leave empty if you ran a key installer (keys at ~/.config/okf-mcp/deploy-key are found automatically), or for HTTPS and local-only use.",
       "required": false
     }
   },
