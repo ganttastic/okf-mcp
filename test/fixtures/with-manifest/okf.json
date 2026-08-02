@@ -1,0 +1,17 @@
+{
+  "okf_version": "0.1",
+  "name": "test-bundle",
+  "title": "Test Bundle",
+  "description": "Miniature bundle every connector is tested against.",
+  "root": "index.md",
+  "agents_guide": "AGENTS.md",
+  "categories": [
+    { "path": "business", "answers": "What are our terms for X?" },
+    { "path": "operations", "answers": "What do I do when X happens?" }
+  ],
+  "machinery": ["docs"],
+  "conventions": {
+    "concept_id": "path minus .md",
+    "generated_files": ["index.md", "*/index.md"]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "dash-wiki": {
+    "kind": "git",
+    "location": "https://github.com/DashAuction/dash-wiki.git#main",
+    "auth": { "env": "OKF_GIT_TOKEN" },
+    "maxStalenessMinutes": 5
+  },
+  "local-scratch": {
+    "kind": "filesystem",
+    "location": "~/Repositories/dash-wiki"
+  }
+}
