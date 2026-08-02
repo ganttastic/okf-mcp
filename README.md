@@ -7,35 +7,53 @@ nothing about what the tools do with the content.
 
 The full design rationale is in [docs/okf-mcp.md](docs/okf-mcp.md).
 
-## Setup
+## Add to Claude Desktop (with a config form)
+
+Build the desktop bundle and open it:
 
 ```bash
-npm install
-cp sources.example.json sources.json   # then edit; secrets stay in the environment
-npm run build
+npm install && npm run pack:mcpb
+open build/okf-mcp.mcpb
 ```
 
-Run over stdio (for an MCP client config):
+Claude Desktop shows an install dialog with a **configuration form**: pick local bundle
+folders with a native directory picker, paste git clone URLs (optionally `#branch`), and
+enter a git token for private repositories — the token is stored in the OS keychain,
+never in a config file. Settings → Extensions → OKF Connector reopens the form any time.
 
-```json
-{
-  "mcpServers": {
-    "okf": {
-      "command": "node",
-      "args": ["/path/to/okf-mcp/dist/server.js"],
-      "env": {
-        "OKF_MCP_SOURCES": "/path/to/okf-mcp/sources.json",
-        "OKF_GIT_TOKEN": "…"
-      }
-    }
-  }
-}
+## Add to Codex
+
+```bash
+codex mcp add okf -- node /path/to/okf-mcp/dist/server.js --local ~/Repositories/dash-wiki
 ```
 
-- `OKF_MCP_SOURCES` — path to the source registry (default: `./sources.json`)
-- `OKF_MCP_CACHE_DIR` — where git clones live (default: `~/.cache/okf-mcp`)
-- Registry `auth.env` names the environment variable holding a credential; config never
-  holds one.
+or in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.okf]
+command = "node"
+args = ["/path/to/okf-mcp/dist/server.js", "--git", "https://github.com/DashAuction/dash-wiki.git#main"]
+env = { OKF_GIT_TOKEN = "…" }
+```
+
+(Build first with `npm install && npm run build`. The same shape works for Claude Code:
+`claude mcp add okf -- node /path/to/okf-mcp/dist/server.js --local <dir>`.)
+
+## Configuring sources
+
+Three equivalent channels, merged in this order:
+
+1. **`sources.json`** — full control, including per-bundle `maxStalenessMinutes` and
+   custom names. Copy `sources.example.json`; point at it with `--sources <path>` or
+   `OKF_MCP_SOURCES`. A `sources.json` in the working directory is picked up
+   automatically. `auth.env` names the environment variable holding a credential;
+   config never holds one.
+2. **CLI flags** — `--local <dir> [<dir>…]` and `--git <url[#branch]> [<url>…]`.
+   Bundle names derive from the directory or repository basename.
+3. **Env vars** — `OKF_MCP_LOCAL_BUNDLES` / `OKF_MCP_GIT_BUNDLES` (comma-separated).
+
+Git bundles use `OKF_GIT_TOKEN` when it is set, and clone under `OKF_MCP_CACHE_DIR`
+(default: `~/.cache/okf-mcp`).
 
 ## Tools
 

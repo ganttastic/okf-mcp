@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { buildRegistry, parseCliOptions } from "./config.js";
 import { z } from "zod";
 import { FilesystemConnector } from "./connectors/filesystem.js";
 import { GitConnector } from "./connectors/git.js";
 import type { BundleHandle, OkfConnector, SearchHit, SourceConfig } from "./connectors/types.js";
-import { loadRegistry } from "./registry.js";
 
 interface ServerContext {
   registry: Map<string, SourceConfig>;
@@ -219,8 +218,8 @@ async function indexScanFallback(
 }
 
 async function main(): Promise<void> {
-  const sourcesPath = resolve(process.env["OKF_MCP_SOURCES"] ?? "sources.json");
-  const registry = await loadRegistry(sourcesPath);
+  const cli = parseCliOptions(process.argv.slice(2));
+  const registry = await buildRegistry(cli, process.env);
   const connectors = new Map<string, OkfConnector>();
   const filesystem = new FilesystemConnector();
   connectors.set(filesystem.kind, filesystem);
@@ -230,7 +229,7 @@ async function main(): Promise<void> {
   const server = createServer({ registry, connectors, handles: new Map() });
   await server.connect(new StdioServerTransport());
   // stdout carries the MCP protocol; anything human goes to stderr.
-  console.error(`okf-mcp serving ${registry.size} bundle(s) from ${sourcesPath}`);
+  console.error(`okf-mcp serving ${registry.size} bundle(s): ${[...registry.keys()].join(", ")}`);
 }
 
 const isDirectRun =

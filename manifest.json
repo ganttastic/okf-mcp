@@ -1,0 +1,71 @@
+{
+  "manifest_version": "0.2",
+  "name": "okf-mcp",
+  "display_name": "OKF Connector",
+  "version": "0.1.0",
+  "description": "Read access to OKF knowledge bundles — local folders or git repositories.",
+  "long_description": "One MCP server that gives agents read access to any number of OKF bundles, wherever they live. Point it at bundle folders on disk and/or git repositories; git bundles are cloned locally and kept fresh with staleness-driven pulls. Read-only by design: bundles are written by their own pipelines and corrected by humans in git.",
+  "author": {
+    "name": "Ryan Gant",
+    "email": "ryan@ryangant.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ganttastic/okf-mcp"
+  },
+  "homepage": "https://github.com/ganttastic/okf-mcp",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/server.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/server.js",
+        "--local",
+        "${user_config.local_bundles}",
+        "--git",
+        "${user_config.git_bundles}"
+      ],
+      "env": {
+        "OKF_GIT_TOKEN": "${user_config.git_token}"
+      }
+    }
+  },
+  "tools": [
+    { "name": "list_bundles", "description": "List every bundle this server fronts" },
+    { "name": "list_directories", "description": "List a bundle's category directories" },
+    { "name": "read_index", "description": "Read a bundle's root or category index" },
+    { "name": "read_concept", "description": "Read one concept file verbatim" },
+    { "name": "search_concepts", "description": "Full-text search across a bundle" }
+  ],
+  "user_config": {
+    "local_bundles": {
+      "type": "directory",
+      "title": "Local bundle folders",
+      "description": "Folders on this machine that are OKF bundles (each has an okf.json or a root index.md). Each folder becomes a bundle named after it.",
+      "multiple": true,
+      "required": false
+    },
+    "git_bundles": {
+      "type": "string",
+      "title": "Git bundle repositories",
+      "description": "Clone URLs of OKF bundle repositories, optionally with a branch, e.g. https://github.com/DashAuction/dash-wiki.git#main. Each becomes a bundle named after the repository.",
+      "multiple": true,
+      "required": false
+    },
+    "git_token": {
+      "type": "string",
+      "title": "Git access token",
+      "description": "Token for private git bundles (stored in the OS keychain). Leave empty for public repositories or local-only use.",
+      "sensitive": true,
+      "required": false
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=20"
+    }
+  },
+  "keywords": ["okf", "knowledge", "wiki", "connector"]
+}

@@ -11,7 +11,8 @@
     "build": "tsc",
     "dev": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "pack:mcpb": "bash scripts/pack-mcpb.sh"
   },
   "engines": {
     "node": ">=20"
