@@ -101,6 +101,7 @@ export class GitConnector implements OkfConnector {
 
   private async pull(bundle: BundleHandle): Promise<void> {
     const { url, branch } = parseLocation(bundle.source);
+    if (isSshRemote(url)) await checkSshKey();
     const authedUrl = withAuth(url, bundle.source, bundle.name);
     const args = ["pull", "--ff-only", authedUrl, ...(branch ? [branch] : [])];
     try {
@@ -127,6 +128,7 @@ export class GitConnector implements OkfConnector {
 
   private async clone(name: string, source: SourceConfig, dir: string): Promise<void> {
     const { url, branch } = parseLocation(source);
+    if (isSshRemote(url)) await checkSshKey();
     const authedUrl = withAuth(url, source, name);
     await mkdir(this.cacheRoot, { recursive: true });
     const args = [
@@ -187,6 +189,32 @@ export function gitEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv 
     merged["GIT_SSH_COMMAND"] = `ssh -i "${sshKey}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`;
   }
   return merged;
+}
+
+/** ssh:// or scp-style (git@host:org/repo) — not https, not a local path. */
+export function isSshRemote(url: string): boolean {
+  return /^ssh:\/\//i.test(url) || /^[^/@]+@[^/:]+:/.test(url);
+}
+
+/**
+ * Fail an SSH sync up front, with the fix, for the two ways a handed-out
+ * deploy key file goes wrong: it isn't where the config says, or it was
+ * saved with permissions ssh will silently refuse.
+ */
+export async function checkSshKey(env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  const keyPath = env["OKF_GIT_SSH_KEY"];
+  if (!keyPath || keyPath.startsWith("${")) return;
+  let stats;
+  try {
+    stats = await stat(keyPath);
+  } catch {
+    throw new Error(`SSH key not found at ${keyPath} (OKF_GIT_SSH_KEY)`);
+  }
+  if (process.platform !== "win32" && (stats.mode & 0o077) !== 0) {
+    throw new Error(
+      `SSH key ${keyPath} is readable by others, so ssh will refuse it — run: chmod 600 "${keyPath}"`,
+    );
+  }
 }
 
 async function git(args: string[], cwd: string): Promise<string> {

@@ -38,6 +38,15 @@ recipient adds either a fine-grained PAT scoped to that repository (HTTPS URL) o
 deploy key file (SSH URL). Give each client's installer its own `--name` — Claude
 Desktop identifies extensions by name, so distinct names can coexist.
 
+To distribute with a read-only deploy key: generate one (`ssh-keygen -t ed25519 -f
+deploy-key -N ""`), add `deploy-key.pub` to the repository as a deploy key with write
+access off, pack the installer with the SSH URL
+(`--git git@github.com:org/wiki.git#main`), and hand out the `.mcpb` plus the private
+key file. Recipients pick the key file in the install form. The server checks the key
+up front and fails with the exact fix if it was saved world-readable (`chmod 600`).
+One SSH key serves all SSH bundles in an install; deploy keys are per-repository on
+GitHub, so multiple private repositories need the PAT route instead.
+
 ## Add to Codex
 
 ```bash
