@@ -9,12 +9,15 @@ export interface CliOptions {
   sourcesPath?: string;
   localDirs: string[];
   gitUrls: string[];
+  /** Validate the bundle at this path and exit, instead of serving. */
+  validatePath?: string;
 }
 
 /**
- * --sources <path>, --local <dir> [<dir>…], --git <url> [<url>…]
- * Value-list flags consume arguments until the next flag, because Claude
- * Desktop expands a multi-value user_config placeholder into that shape.
+ * --sources <path>, --local <dir> [<dir>…], --git <url> [<url>…],
+ * --validate <dir>. Value-list flags consume arguments until the next flag,
+ * because Claude Desktop expands a multi-value user_config placeholder into
+ * that shape.
  */
 export function parseCliOptions(argv: string[]): CliOptions {
   const options: CliOptions = { localDirs: [], gitUrls: [] };
@@ -25,15 +28,18 @@ export function parseCliOptions(argv: string[]): CliOptions {
       sink = options.localDirs;
     } else if (arg === "--git") {
       sink = options.gitUrls;
-    } else if (arg === "--sources") {
+    } else if (arg === "--sources" || arg === "--validate") {
       sink = undefined;
       const value = argv[++i];
       if (value === undefined || value.startsWith("--")) {
-        throw new Error("--sources requires a path");
+        throw new Error(`${arg} requires a path`);
       }
-      options.sourcesPath = value;
+      if (arg === "--sources") options.sourcesPath = value;
+      else options.validatePath = value;
     } else if (arg.startsWith("--")) {
-      throw new Error(`Unknown option "${arg}" (expected --sources, --local, or --git)`);
+      throw new Error(
+        `Unknown option "${arg}" (expected --sources, --local, --git, or --validate)`,
+      );
     } else {
       if (!sink) throw new Error(`Unexpected argument "${arg}"`);
       sink.push(arg);

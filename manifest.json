@@ -33,12 +33,34 @@
     }
   },
   "tools": [
-    { "name": "list_bundles", "description": "List every bundle this server fronts" },
-    { "name": "list_directories", "description": "List a bundle's category directories" },
-    { "name": "read_index", "description": "Read a bundle's root or category index" },
-    { "name": "read_concept", "description": "Read one concept file verbatim" },
-    { "name": "concept_status", "description": "Derived OKF trust and lifecycle signals for a concept" },
-    { "name": "search_concepts", "description": "Full-text search across a bundle" }
+    {
+      "name": "list_bundles",
+      "description": "List every bundle this server fronts"
+    },
+    {
+      "name": "list_directories",
+      "description": "List a bundle's category directories"
+    },
+    {
+      "name": "read_index",
+      "description": "Read a bundle's root or category index"
+    },
+    {
+      "name": "read_concept",
+      "description": "Read one concept file verbatim"
+    },
+    {
+      "name": "concept_status",
+      "description": "Derived OKF trust and lifecycle signals for a concept"
+    },
+    {
+      "name": "validate_bundle",
+      "description": "Producer-side OKF conformance check for a bundle"
+    },
+    {
+      "name": "search_concepts",
+      "description": "Full-text search across a bundle"
+    }
   ],
   "user_config": {
     "local_bundles": {
@@ -70,10 +92,19 @@
     }
   },
   "compatibility": {
-    "platforms": ["darwin", "win32", "linux"],
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
     "runtimes": {
       "node": ">=20"
     }
   },
-  "keywords": ["okf", "knowledge", "wiki", "connector"]
+  "keywords": [
+    "okf",
+    "knowledge",
+    "wiki",
+    "connector"
+  ]
 }

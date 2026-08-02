@@ -1,6 +1,4 @@
 ---
-type: Index
-title: Test Bundle
 okf_version: "0.1"
 ---
 

@@ -1,6 +1,4 @@
 ---
-type: Index
-title: Legacy Bundle
 okf_version: "0.1"
 ---
 

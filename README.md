@@ -101,6 +101,7 @@ Git bundles use `OKF_GIT_TOKEN` when it is set, and clone under `OKF_MCP_CACHE_D
 | `read_index(bundle, directory?)` | the designed discovery surface — prefer before search |
 | `read_concept(bundle, path)` | one concept, verbatim bytes |
 | `concept_status(bundle, path)` | derived OKF signals: trust tier, status, staleness |
+| `validate_bundle(bundle)` | producer-side §11 conformance report |
 | `search_concepts(bundle, query)` | full-text search across a bundle's markdown |
 
 When the registry holds exactly one bundle, the `bundle` parameter is optional and
@@ -123,6 +124,10 @@ humans in git.
 - Missing `index.md` files never reject a bundle: indexes are synthesized on the fly in
   the §8 shape, and a bundle needs no root index or `okf_version` declaration to be
   served (§11–§12).
+- Reading stays lenient; enforcement is opt-in. `validate_bundle` (and the
+  `okf-mcp --validate <dir>` CLI, exit code 1 on errors — made for CI) reports §11
+  violations and SHOULD-level slips in the §5 families instead of the read path
+  rejecting them.
 
 ## Development
 

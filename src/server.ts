@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { pathToFileURL } from "node:url";
 import { buildRegistry, parseCliOptions } from "./config.js";
 import { deriveSignals } from "./okf.js";
+import { validateBundle } from "./validate.js";
 import { z } from "zod";
 import { FilesystemConnector } from "./connectors/filesystem.js";
 import { GitConnector } from "./connectors/git.js";
@@ -157,6 +158,20 @@ export function createServer(context: ServerContext): McpServer {
   );
 
   server.registerTool(
+    "validate_bundle",
+    {
+      title: "Validate bundle",
+      description:
+        "Producer-side OKF §11 conformance check: every concept has parseable frontmatter with a non-empty type, index and log files follow §8/§9, and the §5 trust/provenance families are well-formed. The read tools stay lenient by design; this reports what they tolerate.",
+      inputSchema: { bundle: bundleParam },
+    },
+    async ({ bundle }) => {
+      const { handle } = await getBundle(bundle);
+      return text(JSON.stringify(await validateBundle(handle), null, 2));
+    },
+  );
+
+  server.registerTool(
     "search_concepts",
     {
       title: "Search concepts",
@@ -239,6 +254,25 @@ async function indexScanFallback(
 
 async function main(): Promise<void> {
   const cli = parseCliOptions(process.argv.slice(2));
+
+  // CI mode: validate one bundle directory and exit nonzero on §11 errors.
+  if (cli.validatePath) {
+    const filesystem = new FilesystemConnector();
+    const handle = await filesystem.resolveBundle("bundle", {
+      kind: "filesystem",
+      location: cli.validatePath,
+    });
+    const report = await validateBundle(handle);
+    for (const issue of [...report.errors, ...report.warnings]) {
+      console.log(`${issue.severity}: ${issue.path}: ${issue.message}`);
+    }
+    console.log(
+      `${report.conformant ? "conformant" : "NOT conformant"} — ` +
+        `${report.checkedFiles} file(s), ${report.errors.length} error(s), ${report.warnings.length} warning(s)`,
+    );
+    process.exit(report.conformant ? 0 : 1);
+  }
+
   const registry = await buildRegistry(cli, process.env);
   const connectors = new Map<string, OkfConnector>();
   const filesystem = new FilesystemConnector();

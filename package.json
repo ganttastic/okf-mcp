@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "pack:mcpb": "bash scripts/pack-mcpb.sh",
-    "key:installer": "bash scripts/make-key-installer.sh"
+    "key:installer": "bash scripts/make-key-installer.sh",
+    "prepare": "tsc"
   },
   "engines": {
     "node": ">=20"
