@@ -2,6 +2,7 @@
   "name": "okf-mcp",
   "version": "0.1.0",
   "description": "One MCP server reading many OKF bundles through pluggable source connectors",
+  "license": "Apache-2.0",
   "type": "module",
   "bin": {
     "okf-mcp": "dist/server.js"

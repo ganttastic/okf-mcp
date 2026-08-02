@@ -15,6 +15,7 @@
   },
   "homepage": "https://github.com/ganttastic/okf-mcp",
   "icon": "icon.png",
+  "license": "Apache-2.0",
   "server": {
     "type": "node",
     "entry_point": "dist/server.js",
