@@ -19,7 +19,18 @@ interface ServerContext {
 export function createServer(context: ServerContext): McpServer {
   const server = new McpServer({ name: "okf-mcp", version: "0.1.0" });
 
-  const getBundle = async (name: string): Promise<{ handle: BundleHandle; connector: OkfConnector }> => {
+  const getBundle = async (name?: string): Promise<{ handle: BundleHandle; connector: OkfConnector }> => {
+    // A dedicated single-corpus deployment shouldn't have to repeat the
+    // bundle name on every call; a hub fronting several must be explicit.
+    if (name === undefined) {
+      if (context.registry.size !== 1) {
+        const known = [...context.registry.keys()].join(", ");
+        throw new Error(
+          `This server fronts ${context.registry.size} bundles, so "bundle" is required. Registered bundles: ${known}`,
+        );
+      }
+      name = context.registry.keys().next().value as string;
+    }
     const source = context.registry.get(name);
     if (!source) {
       const known = [...context.registry.keys()].join(", ");
@@ -38,6 +49,13 @@ export function createServer(context: ServerContext): McpServer {
   };
 
   const text = (value: string) => ({ content: [{ type: "text" as const, text: value }] });
+
+  const bundleParam = z
+    .string()
+    .optional()
+    .describe(
+      "Bundle name from list_bundles. Optional when this server fronts exactly one bundle.",
+    );
 
   server.registerTool(
     "list_bundles",
@@ -73,7 +91,7 @@ export function createServer(context: ServerContext): McpServer {
     {
       title: "List directories",
       description: "List the category directories of a bundle (machinery directories excluded).",
-      inputSchema: { bundle: z.string().describe("Bundle name from list_bundles") },
+      inputSchema: { bundle: bundleParam },
     },
     async ({ bundle }) => {
       const { handle, connector } = await getBundle(bundle);
@@ -88,7 +106,7 @@ export function createServer(context: ServerContext): McpServer {
       description:
         "Read a bundle's root index, or a directory's index. The indexes are the designed discovery surface — they answer \"does something like this exist\" in fewer tokens than search. Prefer this before search_concepts.",
       inputSchema: {
-        bundle: z.string().describe("Bundle name from list_bundles"),
+        bundle: bundleParam,
         directory: z
           .string()
           .optional()
@@ -108,7 +126,7 @@ export function createServer(context: ServerContext): McpServer {
       description:
         "Read one concept file verbatim, e.g. path \"business/buyers-premium.md\". Bytes are exact as stored — safe to diff against.",
       inputSchema: {
-        bundle: z.string().describe("Bundle name from list_bundles"),
+        bundle: bundleParam,
         path: z.string().describe("Concept path relative to the bundle root, including .md"),
       },
     },
@@ -126,7 +144,7 @@ export function createServer(context: ServerContext): McpServer {
       description:
         "Full-text search across a bundle's markdown. Check the indexes with read_index first — they are the designed discovery surface; search is for when the indexes don't answer.",
       inputSchema: {
-        bundle: z.string().describe("Bundle name from list_bundles"),
+        bundle: bundleParam,
         query: z.string().describe("Case-insensitive substring to find"),
       },
     },

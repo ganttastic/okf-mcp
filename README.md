@@ -47,6 +47,10 @@ Run over stdio (for an MCP client config):
 | `read_concept(bundle, path)` | one concept, verbatim bytes |
 | `search_concepts(bundle, query)` | full-text search across a bundle's markdown |
 
+When the registry holds exactly one bundle, the `bundle` parameter is optional and
+defaults to it — so a dedicated single-corpus instance never repeats its own name. A
+server fronting several bundles requires it, and the error names the candidates.
+
 Each bundle's `AGENTS.md` is exposed as the MCP resource `okf://{bundle}/agents-guide`.
 
 Read-only, deliberately: bundles are written by their own pipelines and corrected by
