@@ -55,3 +55,31 @@ jobs:
             okf-mcp.tgz \
             okf-mcp-*.tgz \
             build/okf-mcp.mcpb
+
+  # Fan-out: tell every registered bundle repository to rebuild its
+  # preconfigured installer (they listen for repository_dispatch type
+  # okf-mcp-release and call build-installer.yml back here).
+  #
+  # Needs two pieces of repo config, and skips cleanly without them:
+  #   INSTALLER_REPOS   repository variable, space-separated owner/repo list
+  #   INSTALLER_DISPATCH_TOKEN   secret; PAT able to dispatch to those repos
+  # (GITHUB_TOKEN cannot dispatch cross-repository, hence the PAT.)
+  notify-installers:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch to bundle repositories
+        env:
+          GH_TOKEN: ${{ secrets.INSTALLER_DISPATCH_TOKEN }}
+          REPOS: ${{ vars.INSTALLER_REPOS }}
+        run: |
+          if [ -z "${GH_TOKEN:-}" ] || [ -z "${REPOS:-}" ]; then
+            echo "INSTALLER_DISPATCH_TOKEN secret or INSTALLER_REPOS variable not set; skipping fan-out."
+            exit 0
+          fi
+          for repo in $REPOS; do
+            echo "dispatching okf-mcp-release to $repo"
+            gh api "repos/$repo/dispatches" \
+              -f event_type=okf-mcp-release \
+              -F "client_payload[tag]=${GITHUB_REF_NAME}"
+          done

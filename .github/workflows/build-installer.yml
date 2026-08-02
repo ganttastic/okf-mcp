@@ -1,0 +1,78 @@
+# Reusable workflow: build a bundle repository's preconfigured Claude Desktop
+# installer and publish it to THAT repository's releases under the rolling
+# "installer" tag, giving it a stable download URL:
+#
+#   https://github.com/<owner>/<repo>/releases/download/installer/<name>.mcpb
+#
+# A wiki repo calls this with its own parameters (see the caller in dash-wiki's
+# .github/workflows/publish-installer.yml) and triggers on the okf-mcp-release
+# repository_dispatch event, so a new okf-mcp release refreshes every bundle's
+# installer automatically. The build logic lives here, not in the bundle
+# repositories, because those are templates — clones fork and drift.
+name: Build preconfigured installer
+
+on:
+  workflow_call:
+    inputs:
+      installer-name:
+        description: "Extension id, e.g. okf-dash. Also the .mcpb filename."
+        required: true
+        type: string
+      display-name:
+        description: "Human name shown in Claude Desktop, e.g. DASH Wiki."
+        required: true
+        type: string
+      git-url:
+        description: "Clone URL preconfigured into the installer, optionally with #branch."
+        required: true
+        type: string
+      okf-mcp-ref:
+        description: "okf-mcp ref to build from."
+        required: false
+        type: string
+        default: main
+
+jobs:
+  installer:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # release upload in the calling repository
+    steps:
+      - name: Check out okf-mcp
+        uses: actions/checkout@v4
+        with:
+          repository: ganttastic/okf-mcp
+          ref: ${{ inputs.okf-mcp-ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        run: npm ci
+
+      - name: Build installer
+        env:
+          INSTALLER_NAME: ${{ inputs.installer-name }}
+          DISPLAY_NAME: ${{ inputs.display-name }}
+          GIT_URL: ${{ inputs.git-url }}
+        run: |
+          bash scripts/pack-mcpb.sh \
+            --name "$INSTALLER_NAME" \
+            --display-name "$DISPLAY_NAME" \
+            --git "$GIT_URL"
+
+      - name: Publish to this repository's releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INSTALLER_NAME: ${{ inputs.installer-name }}
+        run: |
+          tag=installer
+          if ! gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" -R "$GITHUB_REPOSITORY" \
+              --title "Claude Desktop installer" \
+              --notes "Preconfigured OKF Connector installer for this bundle. Rebuilt automatically when okf-mcp releases."
+          fi
+          gh release upload "$tag" "build/$INSTALLER_NAME.mcpb" -R "$GITHUB_REPOSITORY" --clobber
+          echo "Published: https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$INSTALLER_NAME.mcpb"
