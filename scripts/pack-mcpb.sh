@@ -22,7 +22,7 @@ mkdir -p "$stage"
 npm --prefix "$root" run build
 
 cp -R "$root/dist" "$stage/dist"
-cp "$root/manifest.json" "$root/package.json" "$root/package-lock.json" "$stage/"
+cp "$root/manifest.json" "$root/package.json" "$root/package-lock.json" "$root/LICENSE" "$stage/"
 [ -f "$root/icon.png" ] && cp "$root/icon.png" "$stage/"
 
 node "$root/scripts/inject-defaults.mjs" "$stage/manifest.json" "$@"
