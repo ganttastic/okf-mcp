@@ -106,6 +106,35 @@ it was placed by hand with open permissions.
 One SSH key serves all SSH bundles in an install; deploy keys are per-repository on
 GitHub, so multiple private repositories need the PAT route instead.
 
+### Automating per-bundle installers
+
+A bundle repository can publish its own preconfigured installer at a stable URL —
+`releases/download/installer/<name>.mcpb` — and have it rebuilt automatically whenever
+okf-mcp releases. The bundle repo carries only its parameters:
+
+```yaml
+# .github/workflows/publish-installer.yml
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [okf-mcp-release]
+jobs:
+  installer:
+    permissions: { contents: write }
+    uses: ganttastic/okf-mcp/.github/workflows/build-installer.yml@main
+    with:
+      installer-name: okf-dash
+      display-name: DASH Wiki
+      git-url: git@github.com:DashAuction/dash-wiki.git#main
+```
+
+The build logic lives here in [build-installer.yml](.github/workflows/build-installer.yml),
+so a fix lands in every bundle's next build instead of drifting per template clone. The
+release workflow's fan-out dispatches `okf-mcp-release` to every repo in the
+`INSTALLER_REPOS` repository variable, using the `INSTALLER_DISPATCH_TOKEN` secret (a
+PAT with contents write on those repos — `GITHUB_TOKEN` cannot dispatch
+cross-repository); without both set, the fan-out skips cleanly.
+
 ## Add to Codex
 
 ```bash
