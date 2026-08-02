@@ -43,7 +43,16 @@ export class FilesystemConnector implements OkfConnector {
 
   async readIndex(bundle: BundleHandle, directory?: string): Promise<string> {
     const path = directory ? join(directory, "index.md") : bundle.manifest.root;
-    return this.readVerbatim(bundle, path);
+    try {
+      return await this.readVerbatim(bundle, path);
+    } catch (err) {
+      // index.md is optional everywhere (OKF §8); consumers MAY synthesize
+      // a listing on the fly rather than reject the directory (§11).
+      if ((err as { notFound?: boolean }).notFound) {
+        return this.synthesizeIndex(bundle, directory);
+      }
+      throw err;
+    }
   }
 
   async readConcept(bundle: BundleHandle, path: string): Promise<Concept> {
@@ -60,14 +69,50 @@ export class FilesystemConnector implements OkfConnector {
       if (!entry.isDirectory() || entry.name.startsWith(".") || machinery.has(entry.name)) {
         continue;
       }
-      try {
-        await stat(join(bundle.rootDir, entry.name, "index.md"));
+      // A directory belongs to the knowledge surface if it holds any
+      // markdown — index.md is optional (OKF §8, §11).
+      if (await containsMarkdown(join(bundle.rootDir, entry.name))) {
         directories.push(entry.name);
-      } catch {
-        // no index.md — not part of the knowledge surface
       }
     }
     return directories.sort();
+  }
+
+  /**
+   * A directory listing in the §8 index shape, built from frontmatter:
+   * `* [Title](path) - description`, titles falling back to filenames.
+   */
+  private async synthesizeIndex(bundle: BundleHandle, directory?: string): Promise<string> {
+    const machinery = new Set(directory ? [] : (bundle.manifest.machinery ?? []));
+    const dirPath = directory ? join(bundle.rootDir, directory) : bundle.rootDir;
+    const heading = directory ?? bundle.manifest.title ?? bundle.name;
+    const entries = await readdir(dirPath, { withFileTypes: true });
+
+    const lines: string[] = [`# ${heading}`, ""];
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      if (entry.name.startsWith(".") || machinery.has(entry.name)) continue;
+      if (entry.isDirectory()) {
+        if (await containsMarkdown(join(dirPath, entry.name))) {
+          lines.push(`* [${entry.name}/](${entry.name}/)`);
+        }
+      } else if (
+        entry.isFile() &&
+        entry.name.endsWith(".md") &&
+        entry.name !== "index.md" &&
+        entry.name !== "log.md" // reserved names are not concepts (OKF §3)
+      ) {
+        const relPath = directory ? join(directory, entry.name) : entry.name;
+        const { frontmatter } = parseFrontmatter(await readFile(join(dirPath, entry.name), "utf8"));
+        const title =
+          typeof frontmatter["title"] === "string"
+            ? frontmatter["title"]
+            : entry.name.replace(/\.md$/, "");
+        const description =
+          typeof frontmatter["description"] === "string" ? ` - ${frontmatter["description"]}` : "";
+        lines.push(`* [${title}](${relPath})${description}`);
+      }
+    }
+    return lines.join("\n") + "\n";
   }
 
   async search(bundle: BundleHandle, query: string): Promise<SearchHit[]> {
@@ -123,10 +168,22 @@ export class FilesystemConnector implements OkfConnector {
       return await readFile(full, "utf8");
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        throw new Error(`Bundle "${bundle.name}" has no file at "${path}"`);
+        const notFound = new Error(`Bundle "${bundle.name}" has no file at "${path}"`);
+        (notFound as Error & { notFound: boolean }).notFound = true;
+        throw notFound;
       }
       throw err;
     }
+  }
+}
+
+/** Does the directory hold any markdown at its top level? */
+async function containsMarkdown(dir: string): Promise<boolean> {
+  try {
+    const entries = await readdir(dir, { withFileTypes: true });
+    return entries.some((entry) => entry.isFile() && entry.name.endsWith(".md"));
+  } catch {
+    return false;
   }
 }
 

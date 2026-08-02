@@ -100,6 +100,7 @@ Git bundles use `OKF_GIT_TOKEN` when it is set, and clone under `OKF_MCP_CACHE_D
 | `list_directories(bundle)` | category directories |
 | `read_index(bundle, directory?)` | the designed discovery surface — prefer before search |
 | `read_concept(bundle, path)` | one concept, verbatim bytes |
+| `concept_status(bundle, path)` | derived OKF signals: trust tier, status, staleness |
 | `search_concepts(bundle, query)` | full-text search across a bundle's markdown |
 
 When the registry holds exactly one bundle, the `bundle` parameter is optional and
@@ -110,6 +111,18 @@ Each bundle's `AGENTS.md` is exposed as the MCP resource `okf://{bundle}/agents-
 
 Read-only, deliberately: bundles are written by their own pipelines and corrected by
 humans in git.
+
+## OKF v0.2 conformance (as a consumer)
+
+- Unknown frontmatter keys and `type` values pass through untouched; reads are verbatim
+  bytes.
+- `concept_status` derives trust tiers per §5.3 (`unverified` / `machine-confirmed` /
+  `human-reviewed`, keyed off `human:` actors), normalizes a bare `verified` mapping to
+  a one-element list (§11), applies the `status` default and `stale_after` staleness
+  (§5.4–5.5), and falls back to the v0.1 `timestamp` when `generated` is absent (§13).
+- Missing `index.md` files never reject a bundle: indexes are synthesized on the fly in
+  the §8 shape, and a bundle needs no root index or `okf_version` declaration to be
+  served (§11–§12).
 
 ## Development
 

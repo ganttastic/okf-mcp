@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -48,6 +48,54 @@ describe("manifest synthesis (§3)", () => {
     await expect(
       connector.resolveBundle("ghost", { kind: "filesystem", location: "/nowhere/at/all" }),
     ).rejects.toThrow(/does not exist/);
+  });
+});
+
+describe("lenient consumption (OKF §8, §11, §12)", () => {
+  const connector = new FilesystemConnector();
+
+  it("accepts a bundle with no index files and synthesizes them on read", async () => {
+    const root = await mkdtemp(join(tmpdir(), "okf-mcp-bare-"));
+    try {
+      await mkdir(join(root, "metrics"));
+      await writeFile(
+        join(root, "metrics", "revenue.md"),
+        "---\ntype: Metric\ntitle: Revenue\ndescription: Total hammer revenue.\n---\n\nBody.\n",
+      );
+      await writeFile(join(root, "notes.md"), "---\ntype: Note\n---\n\nA root concept.\n");
+
+      const bundle = await connector.resolveBundle("bare", {
+        kind: "filesystem",
+        location: root,
+      });
+      expect(bundle.manifest.okf_version).toBe("unspecified"); // declaring is a MAY (§12)
+      expect(bundle.manifest.categories.map((c) => c.path)).toEqual(["metrics"]);
+      expect(await connector.listDirectories(bundle)).toEqual(["metrics"]);
+
+      const rootIndex = await connector.readIndex(bundle);
+      expect(rootIndex).toContain("* [metrics/](metrics/)");
+      expect(rootIndex).toContain("* [notes](notes.md)");
+
+      const categoryIndex = await connector.readIndex(bundle, "metrics");
+      expect(categoryIndex).toContain("* [Revenue](metrics/revenue.md) - Total hammer revenue.");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a root index that declares no okf_version", async () => {
+    const root = await mkdtemp(join(tmpdir(), "okf-mcp-unversioned-"));
+    try {
+      await writeFile(join(root, "index.md"), "# Just an index\n");
+      await writeFile(join(root, "thing.md"), "---\ntype: Concept\n---\n\nHi.\n");
+      const bundle = await connector.resolveBundle("unversioned", {
+        kind: "filesystem",
+        location: root,
+      });
+      expect(bundle.manifest.okf_version).toBe("unspecified");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 

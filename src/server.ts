@@ -3,6 +3,7 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { pathToFileURL } from "node:url";
 import { buildRegistry, parseCliOptions } from "./config.js";
+import { deriveSignals } from "./okf.js";
 import { z } from "zod";
 import { FilesystemConnector } from "./connectors/filesystem.js";
 import { GitConnector } from "./connectors/git.js";
@@ -70,6 +71,7 @@ export function createServer(context: ServerContext): McpServer {
         return {
           name,
           kind: source.kind,
+          okf_version: handle?.manifest.okf_version,
           title: handle?.manifest.title,
           description: handle?.manifest.description,
           categories: handle?.manifest.categories.map((c) => ({
@@ -133,6 +135,24 @@ export function createServer(context: ServerContext): McpServer {
       const { handle, connector } = await getBundle(bundle);
       const concept = await connector.readConcept(handle, path);
       return text(concept.raw);
+    },
+  );
+
+  server.registerTool(
+    "concept_status",
+    {
+      title: "Concept status",
+      description:
+        "Derived OKF trust and lifecycle signals for one concept: trust tier (unverified / machine-confirmed / human-reviewed), who verified and generated it, status (draft/stable/deprecated), and staleness. Use before relying on a concept's claims; read_concept stays verbatim and carries none of this.",
+      inputSchema: {
+        bundle: bundleParam,
+        path: z.string().describe("Concept path relative to the bundle root, including .md"),
+      },
+    },
+    async ({ bundle, path }) => {
+      const { handle, connector } = await getBundle(bundle);
+      const concept = await connector.readConcept(handle, path);
+      return text(JSON.stringify(deriveSignals(path, concept.frontmatter), null, 2));
     },
   );
 

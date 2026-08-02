@@ -33,42 +33,48 @@ export async function loadOrSynthesizeManifest(rootDir: string): Promise<LoadedM
 }
 
 /**
- * Synthesize a manifest for a bundle without okf.json: okf_version comes from
- * the root index's frontmatter, categories are the top-level directories that
- * carry an index.md of their own.
+ * Synthesize a manifest for a bundle without okf.json. OKF is lenient by
+ * design: index.md is optional everywhere (§8), and declaring okf_version in
+ * the root index is a MAY (§12) — consumers attempt best-effort consumption
+ * rather than refuse the bundle. So a bundle here is any directory holding
+ * markdown at its top level or in an immediate subdirectory; only a
+ * directory with no markdown at all is rejected.
  */
 export async function synthesizeManifest(rootDir: string): Promise<OkfManifest> {
-  let indexRaw: string;
+  let okfVersion: string | undefined;
   try {
-    indexRaw = await readFile(join(rootDir, "index.md"), "utf8");
+    const { frontmatter } = parseFrontmatter(await readFile(join(rootDir, "index.md"), "utf8"));
+    const declared = frontmatter["okf_version"];
+    if (typeof declared === "string" || typeof declared === "number") {
+      okfVersion = String(declared);
+    }
   } catch {
-    // Absence is not a bundle — resolveBundle callers rely on this throwing.
-    throw new Error(`${rootDir} is not an OKF bundle: no okf.json and no root index.md`);
-  }
-
-  const { frontmatter } = parseFrontmatter(indexRaw);
-  const okfVersion = frontmatter["okf_version"];
-  if (typeof okfVersion !== "string" && typeof okfVersion !== "number") {
-    throw new Error(
-      `${rootDir} is not an OKF bundle: root index.md frontmatter has no okf_version`,
-    );
+    // no root index — synthesized on read (§8)
   }
 
   const entries = await readdir(rootDir, { withFileTypes: true });
+  let hasRootMarkdown = false;
   const categories: { path: string }[] = [];
   for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-    try {
-      await readFile(join(rootDir, entry.name, "index.md"), "utf8");
-      categories.push({ path: entry.name });
-    } catch {
-      // no index.md — not a category
+    if (entry.name.startsWith(".")) continue;
+    if (entry.isFile() && entry.name.endsWith(".md")) {
+      hasRootMarkdown = true;
+    } else if (entry.isDirectory()) {
+      const children = await readdir(join(rootDir, entry.name), { withFileTypes: true });
+      if (children.some((child) => child.isFile() && child.name.endsWith(".md"))) {
+        categories.push({ path: entry.name });
+      }
     }
   }
   categories.sort((a, b) => a.path.localeCompare(b.path));
 
+  if (!hasRootMarkdown && categories.length === 0) {
+    // Absence is not a bundle — resolveBundle callers rely on this throwing.
+    throw new Error(`${rootDir} is not an OKF bundle: no okf.json and no markdown content`);
+  }
+
   return {
-    okf_version: String(okfVersion),
+    okf_version: okfVersion ?? "unspecified",
     root: "index.md",
     categories,
   };

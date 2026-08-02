@@ -64,6 +64,31 @@ describe("bundle parameter defaulting", () => {
       });
       expect(resultText(result)).toContain("# Business");
     });
+
+    it("derives OKF trust and lifecycle signals via concept_status", async () => {
+      const result = await client.callTool({
+        name: "concept_status",
+        arguments: { path: "business/reserve-price.md" },
+      });
+      const signals = JSON.parse(resultText(result));
+      expect(signals.trust_tier).toBe("human-reviewed"); // bare mapping, human: actor
+      expect(signals.verified).toEqual([{ by: "human:ryan", at: "2019-07-01T00:00:00Z" }]);
+      expect(signals.status).toBe("deprecated");
+      expect(signals.stale).toBe(true); // stale_after long past
+      expect(signals.generated_at).toBe("2019-06-01T00:00:00Z"); // v0.1 timestamp fallback
+      expect(signals.tags).toEqual(["auction", "pricing"]);
+    });
+
+    it("reports unverified for concepts without trust fields", async () => {
+      const result = await client.callTool({
+        name: "concept_status",
+        arguments: { path: "business/buyers-premium.md" },
+      });
+      const signals = JSON.parse(resultText(result));
+      expect(signals.trust_tier).toBe("unverified");
+      expect(signals.status).toBe("stable");
+      expect(signals.stale).toBe(false);
+    });
   });
 
   describe("multi-bundle server", () => {
