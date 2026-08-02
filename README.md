@@ -7,6 +7,54 @@ nothing about what the tools do with the content.
 
 The full design rationale is in [docs/okf-mcp.md](docs/okf-mcp.md).
 
+## What is OKF?
+
+The [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+(v0.2) represents knowledge as **a directory of markdown files with YAML frontmatter** —
+a *bundle*, distributed as a git repository, a tarball, or a subdirectory of a larger
+repo. Every non-reserved `.md` file is a *concept*: one subject, written whole, with its
+provenance in frontmatter. The only always-required field is `type`; everything else is
+convention, and consumers must tolerate what they don't recognize.
+
+```yaml
+---
+type: Concept
+title: Buyer's premium
+description: The percentage added to the hammer price.
+generated:                        # who last changed the content, and when (§5.2)
+  by: process:ingest-pipeline     # actors: process:<id>, human:<id>, <tool>/<version> (§7)
+  at: 2026-07-26T22:56:22Z
+verified:                         # independent of generated — who confirmed it (§5.2)
+  - by: human:ryan
+    at: 2026-08-01T00:00:00Z
+sources:                          # what the concept derives from (§5.1)
+  - id: fee-schedule
+    resource: https://example.com/fee-schedule.pdf
+status: stable                    # draft | stable | deprecated (§5.4)
+stale_after: 2027-01-01           # trust decays on a date, not silently (§5.5)
+---
+
+A percentage added to the hammer price…
+```
+
+What makes the format worth building on:
+
+- **Trust is derived, not asserted.** A concept verified by a `human:` actor is
+  *human-reviewed*; by machines only, *machine-confirmed*; otherwise *unverified*
+  (§5.3). Nobody writes a trust tier into a file — consumers compute it, which is what
+  `concept_status` does.
+- **Two reserved filenames.** `index.md` is a directory's table of contents (§8) and
+  `log.md` its date-grouped history, newest first (§9). Both are optional; consumers may
+  synthesize an index on the fly.
+- **Producers stay honest, consumers stay lenient.** §11 tells producers what a
+  conformant bundle looks like, and simultaneously forbids consumers from rejecting
+  bundles over missing options, unknown keys, or broken links. Enforcement is a
+  producer-side act — which is why validation here is a separate tool rather than a
+  gate in the read path.
+
+okf-mcp sits on the consumer side of that contract, with `validate_bundle` as the
+opt-in producer-side check.
+
 ## Add to Claude Desktop (with a config form)
 
 Build the desktop bundle and open it:
@@ -113,7 +161,11 @@ Each bundle's `AGENTS.md` is exposed as the MCP resource `okf://{bundle}/agents-
 Read-only, deliberately: bundles are written by their own pipelines and corrected by
 humans in git.
 
-## OKF v0.2 conformance (as a consumer)
+## OKF v0.2 support
+
+Section references are to [the spec](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md).
+
+### Consuming (always lenient)
 
 - Unknown frontmatter keys and `type` values pass through untouched; reads are verbatim
   bytes.
@@ -124,10 +176,42 @@ humans in git.
 - Missing `index.md` files never reject a bundle: indexes are synthesized on the fly in
   the §8 shape, and a bundle needs no root index or `okf_version` declaration to be
   served (§11–§12).
-- Reading stays lenient; enforcement is opt-in. `validate_bundle` (and the
-  `okf-mcp --validate <dir>` CLI, exit code 1 on errors — made for CI) reports §11
-  violations and SHOULD-level slips in the §5 families instead of the read path
-  rejecting them.
+
+### Validating (opt-in enforcement)
+
+The read path tolerates everything §11 permits it to — which means a hand-added file
+with broken frontmatter, or an index that grew frontmatter it shouldn't have, sails
+through silently. `validate_bundle` is the producer-side counterweight:
+
+- **Errors** are §11 violations: unparseable or missing frontmatter, an empty `type`,
+  index files carrying frontmatter beyond the root's `okf_version` (§8), log files with
+  frontmatter or non-`## YYYY-MM-DD` headings (§9).
+- **Warnings** are SHOULD-level slips in the §5 families: a `sources` entry without its
+  required `resource`, `generated` or `verified` without `by`, a `status` outside
+  `draft | stable | deprecated`, a malformed `stale_after`.
+- Machinery directories named in `okf.json` are skipped; dot-directories always are.
+
+The same checks run from the command line — `okf-mcp --validate <dir>` prints the
+report and exits 1 on errors — so a bundle repository can gate every push on
+conformance with a two-step workflow:
+
+```yaml
+# .github/workflows/validate-bundle.yml
+on: [push, pull_request]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npx --yes github:ganttastic/okf-mcp --validate .
+```
+
+[dash-wiki](https://github.com/DashAuction/dash-wiki) runs exactly this. The validator
+lives here rather than in the bundle repositories because those are templates: template
+clones fork and drift by design, and a checker baked into a template stays broken in
+every clone already stamped from it.
 
 ## Development
 
