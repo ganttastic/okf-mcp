@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { buildRegistry, parseCliOptions } from "./config.js";
 import { deriveSignals } from "./okf.js";
@@ -286,8 +287,16 @@ async function main(): Promise<void> {
   console.error(`okf-mcp serving ${registry.size} bundle(s): ${[...registry.keys()].join(", ")}`);
 }
 
-const isDirectRun =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+// argv[1] may be an npm bin symlink; compare real paths or `npx okf-mcp`
+// silently runs nothing.
+const isDirectRun = (() => {
+  if (process.argv[1] === undefined) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+})();
 if (isDirectRun) {
   main().catch((err) => {
     console.error(err instanceof Error ? err.message : err);
