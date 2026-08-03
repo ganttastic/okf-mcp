@@ -1,6 +1,6 @@
 {
   "name": "okf-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "One MCP server reading many OKF bundles through pluggable source connectors",
   "license": "Apache-2.0",
   "type": "module",
@@ -13,24 +13,26 @@
     "sources.example.json"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/build-apps.mjs",
     "dev": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "pack:mcpb": "bash scripts/pack-mcpb.sh",
     "key:installer": "bash scripts/make-key-installer.sh",
-    "prepare": "tsc"
+    "prepare": "npm run build"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.5",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "yaml": "^2.5.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "esbuild": "^0.28.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"

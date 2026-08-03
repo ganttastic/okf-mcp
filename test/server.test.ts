@@ -1,6 +1,8 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { beforeAll, describe, expect, it } from "vitest";
 import { FilesystemConnector } from "../src/connectors/filesystem.js";
 import type { OkfConnector, SourceConfig } from "../src/connectors/types.js";
@@ -23,6 +25,43 @@ async function connect(registry: Map<string, SourceConfig>): Promise<Client> {
 function resultText(result: Awaited<ReturnType<Client["callTool"]>>): string {
   return (result.content as { type: string; text: string }[])[0].text;
 }
+
+describe("MCP Apps cards", () => {
+  let client: Client;
+
+  beforeAll(async () => {
+    // The card HTML is a build artifact; make sure it exists.
+    await promisify(execFile)("node", [
+      fileURLToPath(new URL("../scripts/build-apps.mjs", import.meta.url)),
+    ]);
+    client = await connect(
+      new Map([["only", { kind: "filesystem", location: WITH_MANIFEST }]]),
+    );
+  });
+
+  it("declares a ui resource on the card-bearing tools, and only those", async () => {
+    const tools = (await client.listTools()).tools;
+    const uiOf = (name: string) =>
+      (tools.find((t) => t.name === name)?._meta as { ui?: { resourceUri?: string } })?.ui
+        ?.resourceUri;
+    expect(uiOf("list_bundles")).toBe("ui://okf/bundles.html");
+    expect(uiOf("concept_status")).toBe("ui://okf/concept-status.html");
+    expect(uiOf("validate_bundle")).toBe("ui://okf/validation.html");
+    // The verbatim read path stays text on purpose.
+    expect(uiOf("read_concept")).toBeUndefined();
+    expect(uiOf("read_index")).toBeUndefined();
+  });
+
+  it("serves the card HTML as self-contained ui resources", async () => {
+    for (const name of ["bundles", "concept-status", "validation"]) {
+      const resource = await client.readResource({ uri: `ui://okf/${name}.html` });
+      const html = (resource.contents[0] as { text: string }).text;
+      expect(html).toContain("<!DOCTYPE html>");
+      expect(html).toContain("<script>"); // JS inlined — the sandbox CSP allows no fetches
+      expect(html).not.toContain("src=\"http");
+    }
+  });
+});
 
 describe("bundle parameter defaulting", () => {
   describe("single-bundle server", () => {

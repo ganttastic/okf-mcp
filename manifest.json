@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "okf-mcp",
   "display_name": "OKF Connector",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Read access to OKF knowledge bundles — local folders or git repositories.",
   "long_description": "One MCP server that gives agents read access to any number of OKF bundles, wherever they live. Point it at bundle folders on disk and/or git repositories; git bundles are cloned locally and kept fresh with staleness-driven pulls. Read-only by design: bundles are written by their own pipelines and corrected by humans in git.",
   "author": {

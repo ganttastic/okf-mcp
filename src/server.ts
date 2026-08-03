@@ -1,8 +1,14 @@
 #!/usr/bin/env node
+import {
+  RESOURCE_MIME_TYPE,
+  registerAppResource,
+  registerAppTool,
+} from "@modelcontextprotocol/ext-apps/server";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { realpathSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildRegistry, parseCliOptions } from "./config.js";
 import { deriveSignals } from "./okf.js";
 import { validateBundle } from "./validate.js";
@@ -18,8 +24,26 @@ interface ServerContext {
   handles: Map<string, BundleHandle>;
 }
 
+// MCP Apps (interactive cards) for the tools whose results are structured
+// data. The verbatim read tools stay text on purpose. Hosts without Apps
+// support ignore the _meta and show the JSON text unchanged.
+const appUri = (name: string) => `ui://okf/${name}.html`;
+
+async function readAppHtml(name: string): Promise<string> {
+  // Compiled layout: dist/server.js + dist/apps/. Dev via tsx runs from src/,
+  // where the built apps live one level over in dist/.
+  for (const base of ["./apps/", "../dist/apps/"]) {
+    try {
+      return await readFile(fileURLToPath(new URL(`${base}${name}.html`, import.meta.url)), "utf8");
+    } catch {
+      // try the next location
+    }
+  }
+  throw new Error(`App UI "${name}" is not built — run: npm run build`);
+}
+
 export function createServer(context: ServerContext): McpServer {
-  const server = new McpServer({ name: "okf-mcp", version: "0.1.0" });
+  const server = new McpServer({ name: "okf-mcp", version: "0.2.0" });
 
   const getBundle = async (name?: string): Promise<{ handle: BundleHandle; connector: OkfConnector }> => {
     // A dedicated single-corpus deployment shouldn't have to repeat the
@@ -59,13 +83,15 @@ export function createServer(context: ServerContext): McpServer {
       "Bundle name from list_bundles. Optional when this server fronts exactly one bundle.",
     );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "list_bundles",
     {
       title: "List bundles",
       description:
         "List every OKF bundle this server fronts, with source kind, sync state, and the questions each category answers. Start here to find the right bundle.",
       inputSchema: {},
+      _meta: { ui: { resourceUri: appUri("bundles") } },
     },
     async () => {
       const rows = [...context.registry.entries()].map(([name, source]) => {
@@ -140,7 +166,8 @@ export function createServer(context: ServerContext): McpServer {
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "concept_status",
     {
       title: "Concept status",
@@ -150,6 +177,7 @@ export function createServer(context: ServerContext): McpServer {
         bundle: bundleParam,
         path: z.string().describe("Concept path relative to the bundle root, including .md"),
       },
+      _meta: { ui: { resourceUri: appUri("concept-status") } },
     },
     async ({ bundle, path }) => {
       const { handle, connector } = await getBundle(bundle);
@@ -158,13 +186,15 @@ export function createServer(context: ServerContext): McpServer {
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "validate_bundle",
     {
       title: "Validate bundle",
       description:
         "Producer-side OKF §11 conformance check: every concept has parseable frontmatter with a non-empty type, index and log files follow §8/§9, and the §5 trust/provenance families are well-formed. The read tools stay lenient by design; this reports what they tolerate.",
       inputSchema: { bundle: bundleParam },
+      _meta: { ui: { resourceUri: appUri("validation") } },
     },
     async ({ bundle }) => {
       const { handle } = await getBundle(bundle);
@@ -191,6 +221,18 @@ export function createServer(context: ServerContext): McpServer {
       return text(JSON.stringify(hits, null, 2));
     },
   );
+
+  for (const name of ["bundles", "concept-status", "validation"]) {
+    registerAppResource(
+      server,
+      `okf-app-${name}`,
+      appUri(name),
+      { mimeType: RESOURCE_MIME_TYPE },
+      async () => ({
+        contents: [{ uri: appUri(name), mimeType: RESOURCE_MIME_TYPE, text: await readAppHtml(name) }],
+      }),
+    );
+  }
 
   // Each bundle's AGENTS.md is an MCP resource, so a consuming agent can load
   // the traversal and authority rules for the bundle it is actually reading.
